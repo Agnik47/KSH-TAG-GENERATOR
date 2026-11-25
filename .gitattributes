@@ -1,0 +1,10 @@
+# Code and docs: LF everywhere (matches Prettier), whatever core.autocrlf says.
+* text=auto eol=lf
+
+# Sample CSVs are byte-exact fixtures (CRLF, like Excel/Unicommerce exports); tests compare them byte for byte.
+*.csv -text
+
+# Binary assets.
+*.ttf binary
+*.png binary
+*.svg text eol=lf

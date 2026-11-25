@@ -1,0 +1,55 @@
+{
+  "name": "ksh-tag-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "npx serve out",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test",
+    "fonts": "node scripts/copy-fonts.mjs"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "bwip-js": "^4.11.4",
+    "exceljs": "^4.4.0",
+    "lucide-react": "^1.80.0",
+    "next": "^16.4.6",
+    "papaparse": "^5.7.1",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.5",
+    "@types/node": "^26.6.8",
+    "@types/papaparse": "^5.5.2",
+    "@types/pngjs": "^6.0.5",
+    "@types/react": "^19.3.1",
+    "@types/react-dom": "^19.3.0",
+    "@zxing/library": "^0.23.0",
+    "dejavu-fonts-ttf": "^2.37.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.6",
+    "pngjs": "^7.0.0",
+    "prettier": "^3.10.1",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=20.9"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

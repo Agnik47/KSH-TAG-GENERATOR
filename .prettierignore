@@ -1,0 +1,9 @@
+.next
+out
+node_modules
+reference
+samples
+public
+docs
+*.md
+package-lock.json

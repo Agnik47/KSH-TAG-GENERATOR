@@ -1,0 +1,42 @@
+@import 'tailwindcss';
+
+/* DejaVu Sans is bundled (needed for the ₹ sign). The live tag preview uses exactly the
+   fonts that are embedded in the PDF. */
+@font-face {
+  font-family: 'KSH DejaVu Sans';
+  src: url('/fonts/DejaVuSans.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'KSH DejaVu Sans';
+  src: url('/fonts/DejaVuSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-tag: 'KSH DejaVu Sans', 'DejaVu Sans', sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+.tag-svg text {
+  font-family: var(--font-tag);
+  font-kerning: none;
+  font-variant-ligatures: none;
+}
+
+/* Thin, unobtrusive scrollbars for the two independently scrolling panes. */
+@media (min-width: 64rem) {
+  main,
+  aside {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-slate-300) transparent;
+  }
+}
