@@ -2,11 +2,16 @@
  * Tag Studio state as a pure reducer (no React, no DOM) so every transition is unit-tested.
  */
 import {
+  DEFAULT_LABEL,
   parseTagCsv,
   parseTagTable,
+  revalidate,
+  sameLabel,
   sanitizeCopiesInput,
   validateRows,
+  validationFor,
   withCopies,
+  type LabelSpec,
   type RowStatus,
   type ValidatedRow,
 } from '@/core/tags';
@@ -27,6 +32,8 @@ export interface StudioState {
   notice: string | null;
   selectedId: string | null;
   filter: RowFilter;
+  /** Label size + orientation. Kept when another file is loaded or the list is cleared. */
+  label: LabelSpec;
 }
 
 export type StudioAction =
@@ -44,6 +51,7 @@ export type StudioAction =
   | { type: 'select'; id: string }
   | { type: 'selectRelative'; delta: number }
   | { type: 'setFilter'; filter: RowFilter }
+  | { type: 'setLabel'; label: LabelSpec }
   | { type: 'clear' };
 
 export const initialStudioState: StudioState = {
@@ -53,6 +61,7 @@ export const initialStudioState: StudioState = {
   notice: null,
   selectedId: null,
   filter: 'all',
+  label: DEFAULT_LABEL,
 };
 
 export function visibleRows(state: Pick<StudioState, 'rows' | 'filter'>): ValidatedRow[] {
@@ -68,23 +77,25 @@ function firstSelectable(rows: ValidatedRow[]): string | null {
 }
 
 export function studioReducer(state: StudioState, action: StudioAction): StudioState {
+  const fresh: StudioState = { ...initialStudioState, label: state.label };
+  const opts = validationFor(state.label);
   switch (action.type) {
     case 'loaded': {
       const parsed = action.content.kind === 'csv' ? parseTagCsv(action.content.text) : parseTagTable(action.content.rows);
       const source = { name: action.name, isSample: action.isSample ?? false };
       if (parsed.fileErrors.length > 0) {
-        return { ...initialStudioState, source, fileErrors: parsed.fileErrors, notice: action.notice ?? null };
+        return { ...fresh, source, fileErrors: parsed.fileErrors, notice: action.notice ?? null };
       }
-      const rows = validateRows(parsed.rows);
+      const rows = validateRows(parsed.rows, opts);
       if (rows.length === 0) {
         return {
-          ...initialStudioState,
+          ...fresh,
           source,
           fileErrors: ['No product rows found. Fill at least one row under the header row.'],
         };
       }
       return {
-        ...initialStudioState,
+        ...fresh,
         source,
         rows,
         notice: action.notice ?? null,
@@ -93,20 +104,20 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
     }
 
     case 'loadFailed':
-      return { ...initialStudioState, source: { name: action.name, isSample: false }, fileErrors: [action.error] };
+      return { ...fresh, source: { name: action.name, isSample: false }, fileErrors: [action.error] };
 
     case 'setCopies': {
       const value = sanitizeCopiesInput(action.value);
       return {
         ...state,
-        rows: state.rows.map((r) => (r.id === action.id ? withCopies(r, value) : r)),
+        rows: state.rows.map((r) => (r.id === action.id ? withCopies(r, value, opts) : r)),
       };
     }
 
     case 'setAllCopies': {
       const value = sanitizeCopiesInput(action.value);
       if (value === '') return state;
-      return { ...state, rows: state.rows.map((r) => withCopies(r, value)) };
+      return { ...state, rows: state.rows.map((r) => withCopies(r, value, opts)) };
     }
 
     case 'select':
@@ -128,8 +139,15 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
       return next;
     }
 
+    case 'setLabel': {
+      if (sameLabel(action.label, state.label)) return state;
+      // Every row is checked again: a code can fit one label and be too long for another.
+      const next = validationFor(action.label);
+      return { ...state, label: action.label, rows: state.rows.map((r) => revalidate(r, next)) };
+    }
+
     case 'clear':
-      return initialStudioState;
+      return fresh;
 
     default:
       return state;

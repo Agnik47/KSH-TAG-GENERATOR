@@ -1,9 +1,15 @@
 'use client';
-import { useCallback, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { assets } from '@/config/site';
 import {
+  ERR,
   TEMPLATE_CSV,
   expandTags,
+  isDefaultLabel,
+  labelFileTag,
+  labelGeometry,
+  labelName,
+  parseLabel,
   expandedCsvFileName,
   parseTagCsv,
   layoutTag,
@@ -12,6 +18,7 @@ import {
   summarise,
   toExpandedCsv,
   type DrawOp,
+  type LabelSpec,
 } from '@/core/tags';
 import { useToast } from '@/components/ui/Toaster';
 import { downloadFile, downloadUrl } from '@/lib/browser/download';
@@ -20,6 +27,26 @@ import { initialStudioState, selectedRow, studioReducer, visibleRows, type RowFi
 import { useTagFonts } from './useTagFonts';
 
 export type ExportKind = 'test' | 'print' | 'preview' | 'csv';
+
+/** The chosen label is remembered in this browser (a convenience; the app works without it). */
+const LABEL_STORAGE_KEY = 'ksh-tag-studio.label.v1';
+
+function readStoredLabel(): LabelSpec | null {
+  try {
+    const text = window.localStorage.getItem(LABEL_STORAGE_KEY);
+    return text ? parseLabel(JSON.parse(text)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeLabel(label: LabelSpec) {
+  try {
+    window.localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(label));
+  } catch {
+    // Private window or blocked storage: the choice just is not remembered.
+  }
+}
 
 /** Everything the Tag Studio screen needs: state, derived data and commands. */
 export function useTagStudio() {
@@ -32,6 +59,26 @@ export function useTagStudio() {
   const rows = useMemo(() => visibleRows(state), [state]);
   const selected = selectedRow(state);
 
+  const geometry = useMemo(() => labelGeometry(state.label), [state.label]);
+
+  // Restore the last label size once, after the first render (the static HTML uses the default).
+  useEffect(() => {
+    const stored = readStoredLabel();
+    if (stored) dispatch({ type: 'setLabel', label: stored });
+  }, []);
+
+  const setLabel = useCallback((label: LabelSpec) => {
+    dispatch({ type: 'setLabel', label });
+    storeLabel(label);
+  }, []);
+
+  /** Rows whose barcode does not fit the chosen label; `sizeOnly` = that is their only error. */
+  const { tooLong, sizeErrors } = useMemo(() => {
+    const isSize = (e: string) => e.startsWith(ERR.barcodeTooLong);
+    const long = state.rows.filter((r) => r.errors.some(isSize));
+    return { tooLong: long.length, sizeErrors: long.filter((r) => r.errors.every(isSize)).length };
+  }, [state.rows]);
+
   const counts = useMemo<Record<RowFilter, number>>(
     () => ({ all: summary.total, ready: summary.ready, error: summary.errors, skipped: summary.skipped }),
     [summary],
@@ -43,15 +90,15 @@ export function useTagStudio() {
     if (!fonts) return map;
     for (const r of state.rows) {
       if (!r.tag) continue;
-      const w = layoutTag(r.tag, fonts.metrics).warnings;
+      const w = layoutTag(r.tag, fonts.metrics, geometry).warnings;
       if (w.length) map.set(r.id, w);
     }
     return map;
-  }, [state.rows, fonts]);
+  }, [state.rows, fonts, geometry]);
 
   const previewOps: DrawOp[] | null = useMemo(
-    () => (fonts && selected?.tag ? layoutTag(selected.tag, fonts.metrics).ops : null),
-    [fonts, selected],
+    () => (fonts && selected?.tag ? layoutTag(selected.tag, fonts.metrics, geometry).ops : null),
+    [fonts, selected, geometry],
   );
 
   // ---- loading -----------------------------------------------------------------------------
@@ -160,9 +207,11 @@ export function useTagStudio() {
           fonts: fonts.fonts,
           metrics: fonts.metrics,
           title: `KSH tags – ${state.source?.name ?? ''}`,
+          label: state.label,
         });
         const fileKind = kind === 'print' ? 'print' : kind === 'test' ? 'TEST-1-each' : 'preview';
-        downloadFile(bytes, pdfFileName(fileKind, now, tags.length), 'application/pdf');
+        const sizeTag = isDefaultLabel(state.label) ? undefined : labelFileTag(state.label);
+        downloadFile(bytes, pdfFileName(fileKind, now, tags.length, sizeTag), 'application/pdf');
         toast(
           kind === 'preview'
             ? {
@@ -173,7 +222,7 @@ export function useTagStudio() {
             : {
                 tone: 'success',
                 title: `${kind === 'test' ? 'Test print' : 'Print'} PDF downloaded (${tags.length} pages)`,
-                description: 'Print at Actual size / 100% on 75 × 125 mm, portrait.',
+                description: `Print at Actual size / 100% on ${labelName(state.label)} labels.`,
               },
         );
       } catch (e) {
@@ -182,7 +231,7 @@ export function useTagStudio() {
         setBusy(null);
       }
     },
-    [state.rows, state.source, fonts, toast],
+    [state.rows, state.source, state.label, fonts, toast],
   );
 
   return {
@@ -193,6 +242,10 @@ export function useTagStudio() {
     counts,
     warnings,
     previewOps,
+    geometry,
+    tooLong,
+    sizeErrors,
+    setLabel,
     fontsReady: fonts !== null,
     fontError,
     retryFonts,

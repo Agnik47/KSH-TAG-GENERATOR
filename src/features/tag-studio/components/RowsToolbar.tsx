@@ -11,6 +11,8 @@ interface Props {
   source: StudioSource | null;
   notice: string | null;
   summary: Summary;
+  /** Error rows whose only problem is a barcode too long for the chosen label size. */
+  sizeErrors: number;
   counts: Record<RowFilter, number>;
   filter: RowFilter;
   onFilter: (f: RowFilter) => void;
@@ -26,7 +28,18 @@ const FILTERS: Array<{ id: RowFilter; label: string; tone: string }> = [
   { id: 'skipped', label: 'Skipped', tone: 'text-slate-500' },
 ];
 
-export function RowsToolbar({ source, notice, summary, counts, filter, onFilter, onSetAllCopies, onReplace, onClear }: Props) {
+export function RowsToolbar({
+  source,
+  notice,
+  summary,
+  sizeErrors,
+  counts,
+  filter,
+  onFilter,
+  onSetAllCopies,
+  onReplace,
+  onClear,
+}: Props) {
   const [bulk, setBulk] = useState('');
 
   const applyBulk = () => {
@@ -132,8 +145,10 @@ export function RowsToolbar({ source, notice, summary, counts, filter, onFilter,
 
       {summary.errors > 0 && (
         <p className="text-sm text-rose-700">
-          {summary.errors} row{summary.errors === 1 ? ' has' : 's have'} errors and will not be printed. Fix them in your file
-          (the Row number shows where) and load it again.
+          {summary.errors} row{summary.errors === 1 ? ' has' : 's have'} errors and will not be printed.{' '}
+          {sizeErrors === summary.errors
+            ? 'Their barcodes are too long for this label size: choose a bigger label on the right.'
+            : 'Fix them in your file (the Row number shows where) and load it again.'}
         </p>
       )}
     </div>

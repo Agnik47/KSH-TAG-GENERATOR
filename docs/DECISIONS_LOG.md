@@ -52,3 +52,30 @@ These are choices made while building, where the docs (01–05) did not say what
 | P1-34 | **The header row is found automatically** in the first 10 rows (a row naming the barcode column and one more known column), for CSV and Excel. | Lets the styled template have a title and legend above the header. |
 | P1-35 | The table's first column is now **Row = row number in the uploaded file** (Excel row / CSV line). | "Row 6: Price above MRP" points straight at row 6 in Excel. |
 | P1-36 | **ExcelJS is loaded only when needed** (download a template or open an .xlsx): separate ~0.9 MB chunk, not in the first page load. `uuid` is overridden to ^11.1.1 (ExcelJS's pinned version had a moderate advisory; ExcelJS only calls `v4()`, which is unchanged). | Fast first load; `npm audit` clean. |
+
+## Phase 1.3 (label sizes), 25 Nov 2026
+
+| # | Decision | Why |
+| --- | --- | --- |
+| P1-37 | **Label size choice** in the right panel: 75 × 125 mm (default, the current roll), 100 × 50 mm, 51 × 32 mm, or a custom size (20–104 mm across, the GX430t's print width; up to 300 mm long). Sizes are written like Zebra rolls: **width across the printer × length**. The last choice is remembered in the browser. | Owner wants 1–3 sizes, incl. a small 51 × 32 tag, chosen before printing. |
+| P1-38 | **Horizontal / Vertical** for every size. Horizontal = the long side reads left to right; vertical = the tag stands upright. The print PDF page is always the label as it leaves the printer; when the tag and the label disagree the tag is turned 90° on the page (the same rule docs/03 uses for 125 × 75 on the 75 × 125 roll). The barcode always runs across the tag. | Owner chose "tag can be portrait". One rule covers every size and keeps the default unchanged. |
+| P1-39 | **The barcode is checked per label.** Room = tag width − both side margins (113 mm on the standard tag); the widest 7…3-dot module that fits is used; never thinner than 3 dots (0.25 mm). Codes that do not fit become row errors, e.g. "Barcode too long for 51 × 32 mm (needs 87 mm, fits 46 mm)". Changing the size re-checks every row (ids and Copies kept). | The KSH SKU codes need 73–87 mm even at the thinnest bars, so they cannot go on small labels. Better an error before printing than an unscannable tag. |
+| P1-40 | **Layouts**: 75 × 125 horizontal keeps the exact docs/03 tag. Other sizes with a short side ≥ 40 mm show the same content, with text sized down together until the barcode is at least 8 mm tall (grown up to 1.4× on roomy tags while the barcode keeps 12 mm); the footer wraps at " \| " on narrow tags; the store name and "You save" are dropped only as a last resort (with a warning). **Small tags (short side < 40 mm, e.g. 51 × 32): product name, barcode and code only, no footer** (owner's choice); long names are shortened with "…". | Readable tags on every size without hand-drawing each one. |
+| P1-41 | PDF file names include the size for non-standard labels (`ksh-tags_print_51x32mm_…pdf`, `…-vertical`). The print guide shows the chosen paper size and says to set it in the Zebra settings and calibrate after changing rolls. | Avoids printing a 51 × 32 PDF on the 75 × 125 roll by mistake. |
+
+## Phase 1.4 (QR tag for small labels), 25 Nov 2026
+
+| # | Decision | Why |
+| --- | --- | --- |
+| P1-42 | **Small labels (short side < 40 mm, e.g. 51 × 32) print a QR code instead of a line barcode**, for old and new SKUs alike. The QR holds only the ScanIdentifier (error correction M), so Shopify POS matches it to the product's Barcode field as before. Squares are whole printer dots, aiming at ~12.5 mm (6 dots = 0.51 mm for the 25 × 25 new-SKU QR, 7 dots for the 21 × 21 old-SKU QR), never under 5 dots (0.42 mm); ≥ 4 squares of white all round. Every current code fits 51 × 32 in both directions. | The new SKU codes need 73–87 mm as a line barcode, more than a 51 mm label. A phone-camera test of the QR tags scanned. |
+| P1-43 | **Design "Classic"** (owner's choice from `docs/TEST_CODE/QR_Design_*.pdf`): KIDS SURPLUS HUB (letter-spaced) and a thin rule, product name, QR left, prices right, code centred at the bottom; portrait tags stack the QR above the prices. Owner's changes: **"MRP" → "PRICE"** (struck through) and **no "(Incl. of all taxes)" line**. Black only (thermal printers dither grey). | Agreed design; same look for old and new SKUs. |
+| P1-44 | 75 × 125 (docs/03) and other line-barcode sizes are unchanged. | Those tags are in use and scan; only small labels needed the QR. |
+
+## Phase 1.5 (QR tag with MRP and legal details), 26 Nov 2026
+
+| # | Decision | Why |
+| --- | --- | --- |
+| P1-45 | **Small QR tag, owner's new design** (sample: `docs/TEST_CODE/KSH_QR_51x32_MRP_SAMPLE.pdf`, `node scripts/make-qr-mrp-sample.mjs`): "PRICE" → **"MRP ₹1190.00"** (still struck through) with **"(Incl. of all taxes)"** under it; **"You save" removed** and replaced by **"Mfd: Nov-26"** (small, regular weight); new bottom line **"Mfg/Mkt: K.L. Pvt. Ltd. Bengaluru-67 | Country of Origin: INDIA"** (two lines on vertical tags). The QR code is unchanged (same squares and size). Old SKUs with a Size line use a slightly smaller big price (12 pt, 11 pt vertical) so nothing crowds. | Owner wants the legal details of the old Wishkaro label on the QR tag without changing the QR that already scans. |
+| P1-46 | **Mfd = the month the PDF/preview is made** (computer's local date), written `Mon-YY`. `layoutTag(…, date)` takes the date so tests are fixed. | Owner's example "Mfd: Nov-26" on 26 Nov 2026. Tags printed in a new month show that month. |
+| P1-47 | "Bengaluru-67" spelt as on the old Wishkaro label. The 75 × 125 and other line-barcode tags are unchanged. | Same text as the label already in use; only the small QR tag was redesigned. |
+

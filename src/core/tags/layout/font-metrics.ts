@@ -1,5 +1,5 @@
 import fontkit from '@pdf-lib/fontkit';
-import type { FontId } from './tag-layout';
+import type { FontId } from './draw-ops';
 
 /** The two TTF files every renderer needs (DejaVu Sans + DejaVu Sans Bold). */
 export interface FontBytes {

@@ -7,6 +7,10 @@ import type { ExportKind } from '../hooks/useTagStudio';
 
 interface Props {
   summary: Summary;
+  /** "51 × 32 mm" — the label the print PDF is made for. */
+  labelText: string;
+  /** Design size, e.g. "125 × 75". */
+  designText: string;
   fontsReady: boolean;
   busy: ExportKind | null;
   onExport: (kind: ExportKind) => void;
@@ -65,7 +69,7 @@ function ActionRow({
   );
 }
 
-export function ActionsPanel({ summary, fontsReady, busy, onExport }: Props) {
+export function ActionsPanel({ summary, labelText, designText, fontsReady, busy, onExport }: Props) {
   const noRows = summary.ready === 0;
   const pdfDisabled = noRows || !fontsReady || busy !== null;
 
@@ -85,7 +89,7 @@ export function ActionsPanel({ summary, fontsReady, busy, onExport }: Props) {
       <ActionRow
         primary
         title="Download print PDF"
-        hint={`${plural(summary.labels, 'page')} · 75 × 125 mm · one page per copy`}
+        hint={`${plural(summary.labels, 'page')} · ${labelText} · one page per copy`}
         icon={<Printer className="size-4.5" aria-hidden />}
         disabled={pdfDisabled || summary.labels === 0}
         loading={busy === 'print'}
@@ -109,7 +113,7 @@ export function ActionsPanel({ summary, fontsReady, busy, onExport }: Props) {
             {busy !== 'preview' && <Eye className="size-4" aria-hidden />}
             Preview PDF
           </span>
-          <span className="text-xs font-normal text-slate-500">125 × 75, on screen</span>
+          <span className="text-xs font-normal text-slate-500">{designText}, on screen</span>
         </Button>
         <Button
           className="h-auto flex-col items-start gap-0.5 py-2.5 text-left"

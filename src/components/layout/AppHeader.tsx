@@ -15,7 +15,7 @@ export function AppHeader({ actions }: { actions?: ReactNode }) {
           <div className="sr-only min-w-0 leading-tight sm:not-sr-only">
             <p className="truncate text-[15px] font-semibold text-slate-900">{siteConfig.name}</p>
             <p className="hidden truncate text-xs text-slate-500 sm:block">
-              {siteConfig.store} · price tags for {siteConfig.printer.model} ({siteConfig.printer.paper})
+              {siteConfig.store} · price tags for {siteConfig.printer.model}
             </p>
           </div>
         </div>

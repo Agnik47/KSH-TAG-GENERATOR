@@ -1,8 +1,11 @@
 /**
  * Render KSH tags to PDF (docs/03).
- *  - print:   pages 75 × 125 mm (the Zebra roll), design rotated +90° (translate x by 75 mm, rotate 90°)
- *  - preview: pages 125 × 75 mm, not rotated (for checking on screen)
+ *  - print:   one page = one label as it leaves the printer (default 75 × 125 mm roll). When the
+ *             design and the label disagree, the design is turned +90° (translate x by the page
+ *             width, rotate 90°), as docs/03 does for the 125 × 75 tag on the 75 × 125 roll.
+ *  - preview: pages the size of the design, not rotated (for checking on screen)
  * One page per tag in the list given (expand copies first with expandTags()).
+ * Tags must be validated for the same label (validationFor(label)) so the bars fit.
  *
  * Each distinct tag is drawn once into a PDF Form XObject, and every copy's page just places
  * that object. 2,000 labels of 20 products therefore cost 20 drawings, not 2,000, which keeps
@@ -24,6 +27,7 @@ import {
   popGraphicsState,
   pushGraphicsState,
   rectangle,
+  setCharacterSpacing,
   setFillingGrayscaleColor,
   setFontAndSize,
   setLineWidth,
@@ -33,7 +37,8 @@ import {
   stroke,
 } from 'pdf-lib';
 import { createFontMetrics, type FontBytes, type FontMetrics } from '../layout/font-metrics';
-import { DESIGN_H_MM, DESIGN_W_MM, layoutTag, type DrawOp, type FontId } from '../layout/tag-layout';
+import { DEFAULT_LABEL, labelGeometry, type LabelSpec } from '../label/label';
+import { layoutTag, type DrawOp, type FontId } from '../layout/tag-layout';
 import type { TagData } from '../types';
 
 export type PdfMode = 'print' | 'preview';
@@ -42,8 +47,9 @@ export const MM_PT = 72 / 25.4;
 const mm = (v: number) => v * MM_PT;
 
 /** Page size in points for each mode. */
-export function pageSizePt(mode: PdfMode): [number, number] {
-  return mode === 'print' ? [mm(DESIGN_H_MM), mm(DESIGN_W_MM)] : [mm(DESIGN_W_MM), mm(DESIGN_H_MM)];
+export function pageSizePt(mode: PdfMode, label: LabelSpec = DEFAULT_LABEL): [number, number] {
+  const g = labelGeometry(label);
+  return mode === 'print' ? [mm(g.pageW), mm(g.pageH)] : [mm(g.w), mm(g.h)];
 }
 
 export interface RenderOptions {
@@ -52,6 +58,8 @@ export interface RenderOptions {
   /** Optional metrics (reuse the ones the UI already built). */
   metrics?: FontMetrics;
   title?: string;
+  /** Label size and orientation (default: the 75 × 125 roll, horizontal tag). */
+  label?: LabelSpec;
 }
 
 /** Font resource names used inside every tag XObject. */
@@ -67,7 +75,9 @@ function opsToPdf(ops: DrawOp[], fonts: Record<FontId, PDFFont>): PDFOperator[] 
         beginText(),
         setFontAndSize(FONT_RES[op.font], op.size),
         setTextMatrix(1, 0, 0, 1, mm(op.x), mm(op.y)),
+        ...(op.track ? [setCharacterSpacing(op.track)] : []),
         showText(fonts[op.font].encodeText(op.text)),
+        ...(op.track ? [setCharacterSpacing(0)] : []),
         endText(),
       );
     } else if (op.kind === 'line') {
@@ -78,6 +88,15 @@ function opsToPdf(ops: DrawOp[], fonts: Record<FontId, PDFFont>): PDFOperator[] 
         lineTo(mm(op.x2), mm(op.y2)),
         stroke(),
       );
+    } else if (op.kind === 'matrix') {
+      // QR: all squares in one filled path, so touching squares print solid (no hairline seams).
+      out.push(setFillingGrayscaleColor(0));
+      for (const [row, col, len] of op.runs) {
+        out.push(
+          rectangle(mm(op.x + col * op.module), mm(op.y + (op.n - 1 - row) * op.module), mm(len * op.module), mm(op.module)),
+        );
+      }
+      out.push(fill());
     } else {
       // All bars as one filled path, each bar a whole number of printer dots wide.
       out.push(setFillingGrayscaleColor(0));
@@ -103,13 +122,15 @@ export async function renderTagsPdf(tags: TagData[], opts: RenderOptions): Promi
   doc.setProducer('KSH Tag Studio (pdf-lib)');
 
   const resources = doc.context.obj({ Font: { [FONT_RES.R]: fonts.R.ref, [FONT_RES.B]: fonts.B.ref } });
-  const bbox = [0, 0, mm(DESIGN_W_MM), mm(DESIGN_H_MM)];
+  const label = opts.label ?? DEFAULT_LABEL;
+  const geometry = labelGeometry(label);
+  const bbox = [0, 0, mm(geometry.w), mm(geometry.h)];
   // Identical tags (same object, e.g. copies of one row) share one XObject.
   const xobjects = new Map<TagData, PDFRef>();
   const xobjectFor = (tag: TagData): PDFRef => {
     let ref = xobjects.get(tag);
     if (!ref) {
-      const stream = doc.context.formXObject(opsToPdf(layoutTag(tag, metrics).ops, fonts), {
+      const stream = doc.context.formXObject(opsToPdf(layoutTag(tag, metrics, geometry).ops, fonts), {
         BBox: bbox,
         Resources: resources,
       });
@@ -119,14 +140,15 @@ export async function renderTagsPdf(tags: TagData[], opts: RenderOptions): Promi
     return ref;
   };
 
-  const [pw, ph] = pageSizePt(opts.mode);
+  const [pw, ph] = pageSizePt(opts.mode, label);
+  const rotate = opts.mode === 'print' && geometry.rotated;
   for (const tag of tags) {
     const page = doc.addPage([pw, ph]);
     const name = page.node.newXObject('Tag', xobjectFor(tag));
     page.pushOperators(
       pushGraphicsState(),
-      // Roll is 75 wide × 125 long: x' = 75mm − y, y' = x  (translate 75 mm, rotate +90°).
-      ...(opts.mode === 'print' ? [concatTransformationMatrix(0, 1, -1, 0, pw, 0)] : []),
+      // Design turned onto the label: x' = page width − y, y' = x  (translate, rotate +90°).
+      ...(rotate ? [concatTransformationMatrix(0, 1, -1, 0, pw, 0)] : []),
       drawObject(name),
       popGraphicsState(),
     );

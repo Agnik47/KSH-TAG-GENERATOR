@@ -2,7 +2,7 @@
 import { ChevronLeft, ChevronRight, CircleAlert, ImageOff, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { DOT_MM, encodeCode128, type DrawOp, type ValidatedRow } from '@/core/tags';
+import { DOT_MM, encodeCode128, encodeQr, type DrawOp, type TagGeometry, type ValidatedRow } from '@/core/tags';
 import { TagPreview } from './TagPreview';
 
 interface Props {
@@ -12,18 +12,32 @@ interface Props {
   /** 1-based position of the row in the current list, and the list length. */
   position: { index: number; total: number } | null;
   fontsReady: boolean;
+  geometry: TagGeometry;
   onPrev: () => void;
   onNext: () => void;
 }
 
-function barcodeInfo(row: ValidatedRow): string | null {
+function barcodeInfo(row: ValidatedRow, geometry: TagGeometry): string | null {
   if (!row.tag) return null;
+  if (geometry.symbology === 'qr') {
+    const { n } = encodeQr(row.tag.scanIdentifier);
+    const square = row.tag.barcodeDots * DOT_MM;
+    return `QR ${n} × ${n} · ${square.toFixed(2)} mm squares · ${(n * square).toFixed(1)} mm`;
+  }
   const { modules } = encodeCode128(row.tag.scanIdentifier);
   const width = modules * row.tag.barcodeDots * DOT_MM;
   return `${row.tag.barcodeDots}-dot bars · ${width.toFixed(1)} mm wide`;
 }
 
-export function PreviewPanel({ row, ops, warnings, position, fontsReady, onPrev, onNext }: Props) {
+const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+/** Tall previews are limited to this height (px) so the print buttons stay in view. */
+const MAX_PREVIEW_PX = 380;
+
+export function PreviewPanel({ row, ops, warnings, position, fontsReady, geometry, onPrev, onNext }: Props) {
+  const { w, h } = geometry;
+  // Landscape tags use the full panel width; tall tags are narrowed so they are at most MAX_PREVIEW_PX high.
+  const frameStyle = h > w ? { maxWidth: `${Math.round((MAX_PREVIEW_PX * w) / h)}px` } : undefined;
   return (
     <section aria-labelledby="preview-title" className="rounded-xl border border-slate-200 bg-white shadow-xs">
       <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
@@ -58,11 +72,17 @@ export function PreviewPanel({ row, ops, warnings, position, fontsReady, onPrev,
       </div>
 
       <div className="p-4">
-        <div className="overflow-hidden rounded-md bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.08)]">
+        <div
+          className="mx-auto overflow-hidden rounded-md bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.08)]"
+          style={frameStyle}
+        >
           {ops ? (
-            <TagPreview ops={ops} />
+            <TagPreview ops={ops} width={w} height={h} />
           ) : (
-            <div className="flex aspect-[125/75] flex-col items-center justify-center gap-2 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            <div
+              className="flex flex-col items-center justify-center gap-2 bg-slate-50 p-4 text-center text-sm text-slate-500"
+              style={{ aspectRatio: `${w} / ${h}` }}
+            >
               {row?.status === 'error' ? (
                 <>
                   <CircleAlert className="size-6 text-rose-500" aria-hidden />
@@ -88,8 +108,8 @@ export function PreviewPanel({ row, ops, warnings, position, fontsReady, onPrev,
                 <dd className="text-slate-800">
                   {row.tag.layout === 'old' ? 'Old Wishkaro style (colour + size)' : 'New KSH Surplus'}
                 </dd>
-                <dt className="text-slate-500">Bars</dt>
-                <dd className="text-slate-800">{barcodeInfo(row)}</dd>
+                <dt className="text-slate-500">{geometry.symbology === 'qr' ? 'Code' : 'Bars'}</dt>
+                <dd className="text-slate-800">{barcodeInfo(row, geometry)}</dd>
               </>
             )}
             <dt className="text-slate-500">Copies</dt>
@@ -126,7 +146,8 @@ export function PreviewPanel({ row, ops, warnings, position, fontsReady, onPrev,
           </ul>
         )}
         <p className="mt-3 text-xs text-slate-500">
-          Design 125 × 75 mm. On the roll it prints turned 90°. Use ↑ ↓ in the table to move between rows.
+          Tag {fmt(w)} × {fmt(h)} mm{geometry.rotated ? '. On the roll it prints turned 90°' : ''}. Use ↑ ↓ in the table to move
+          between rows.
         </p>
       </div>
     </section>

@@ -6,6 +6,9 @@ export const DOT_MM = 25.4 / 300;
 /** Narrow-bar widths tried, widest first (docs/03). */
 export const MODULE_DOTS = [7, 6, 5, 4, 3] as const;
 
+/** Thinnest narrow bar we ever print (3 dots = 0.254 mm). */
+export const MIN_MODULE_DOTS = 3;
+
 /** Barcode width + quiet zones must fit in this (mm). */
 export const MAX_BARCODE_MM = 113;
 
@@ -52,19 +55,23 @@ export function barcodeWidthMm(modules: number, dots: number): number {
 
 /**
  * Choose the widest narrow-bar width (7…3 dots) for which
- * barcode width + 10-module quiet zones on both sides ≤ 113 mm.
+ * barcode width + 10-module quiet zones on both sides ≤ `roomMm` (113 mm on the standard tag).
  * Returns null when it does not fit even at 3 dots ("Barcode too long").
  */
-export function chooseModuleDots(modules: number): number | null {
+export function chooseModuleDots(modules: number, roomMm: number = MAX_BARCODE_MM): number | null {
   for (const dots of MODULE_DOTS) {
-    const total = (modules + 2 * QUIET_MODULES) * dots * DOT_MM;
-    if (total <= MAX_BARCODE_MM + 1e-9) return dots;
+    if (neededWidthMm(modules, dots) <= roomMm + 1e-9) return dots;
   }
   return null;
 }
 
+/** Barcode width including both quiet zones (mm). */
+export function neededWidthMm(modules: number, dots: number): number {
+  return (modules + 2 * QUIET_MODULES) * dots * DOT_MM;
+}
+
 /** Convenience: encode + choose. Returns null for module dots if too long. */
-export function planBarcode(value: string): { enc: EncodedBarcode; dots: number | null } {
+export function planBarcode(value: string, roomMm: number = MAX_BARCODE_MM): { enc: EncodedBarcode; dots: number | null } {
   const enc = encodeCode128(value);
-  return { enc, dots: chooseModuleDots(enc.modules) };
+  return { enc, dots: chooseModuleDots(enc.modules, roomMm) };
 }

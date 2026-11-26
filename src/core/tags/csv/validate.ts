@@ -1,4 +1,6 @@
-import { isPrintableAscii, planBarcode } from '../barcode/code128';
+import { MIN_MODULE_DOTS, isPrintableAscii, neededWidthMm, planBarcode } from '../barcode/code128';
+import { chooseQrDots, encodeQr } from '../barcode/qr';
+import { labelGeometry, labelName, type LabelSpec } from '../label/label';
 import type { Layout, RawRow, TagData, ValidatedRow } from '../types';
 
 export const MAX_COPIES = 999;
@@ -76,7 +78,27 @@ function nextId(raw: RawRow): string {
  * Validate one row and compute the derived values. A row with any error is never printed.
  * `copies` = 0 (and no other error) → status "skipped".
  */
-export function validateRow(raw: RawRow, id?: string): ValidatedRow {
+/** What the row is checked against. Defaults to the standard 75 × 125 tag. */
+export interface ValidateOptions {
+  /** Most room the barcode may take, quiet zones included (mm). */
+  barcodeRoomMm?: number;
+  /** Shown in the "too long" error when the label is not the standard one, e.g. "51 × 32 mm". */
+  labelName?: string;
+  /** Small tags print a QR code: the code must fit `qrRoomMm` instead of a barcode width. */
+  symbology?: 'code128' | 'qr';
+  qrRoomMm?: number;
+}
+
+/** Validation options for a label size. */
+export function validationFor(label: LabelSpec): ValidateOptions {
+  const g = labelGeometry(label);
+  if (g.standard) return {};
+  const name = `${labelName(label)}${label.orientation === 'vertical' ? ' vertical' : ''}`;
+  if (g.symbology === 'qr') return { symbology: 'qr', qrRoomMm: g.qrRoomMm, labelName: name };
+  return { barcodeRoomMm: g.barcodeRoomMm, labelName: name };
+}
+
+export function validateRow(raw: RawRow, id?: string, opts: ValidateOptions = {}): ValidatedRow {
   const errors: string[] = [];
   const code = raw.scanIdentifier.trim();
   const name = raw.productName.trim();
@@ -90,8 +112,24 @@ export function validateRow(raw: RawRow, id?: string): ValidatedRow {
     errors.push(ERR.invalidBarcode);
   } else {
     try {
-      barcodeDots = planBarcode(code).dots;
-      if (barcodeDots === null) errors.push(ERR.barcodeTooLong);
+      if (opts.symbology === 'qr') {
+        // Small tag: a QR code. `barcodeDots` is then the QR square size in dots.
+        barcodeDots = chooseQrDots(encodeQr(code).n, opts.qrRoomMm ?? 0);
+        if (barcodeDots === null) errors.push(`${ERR.barcodeTooLong} for a QR on ${opts.labelName ?? 'this label'}`);
+      } else {
+        const plan = opts.barcodeRoomMm === undefined ? planBarcode(code) : planBarcode(code, opts.barcodeRoomMm);
+        barcodeDots = plan.dots;
+        if (barcodeDots === null) {
+          if (opts.labelName && opts.barcodeRoomMm !== undefined) {
+            const need = neededWidthMm(plan.enc.modules, MIN_MODULE_DOTS);
+            errors.push(
+              `${ERR.barcodeTooLong} for ${opts.labelName} (needs ${Math.ceil(need)} mm, fits ${Math.floor(opts.barcodeRoomMm)} mm)`,
+            );
+          } else {
+            errors.push(ERR.barcodeTooLong);
+          }
+        }
+      }
     } catch {
       errors.push(ERR.invalidBarcode);
     }
@@ -141,13 +179,18 @@ export function validateRow(raw: RawRow, id?: string): ValidatedRow {
   };
 }
 
-export function validateRows(rows: RawRow[]): ValidatedRow[] {
-  return rows.map((r) => validateRow(r));
+export function validateRows(rows: RawRow[], opts: ValidateOptions = {}): ValidatedRow[] {
+  return rows.map((r) => validateRow(r, undefined, opts));
+}
+
+/** Check an already validated row again (e.g. for another label size), keeping its id. */
+export function revalidate(row: ValidatedRow, opts: ValidateOptions = {}): ValidatedRow {
+  return validateRow(row.raw, row.id, opts);
 }
 
 /** Change the Copies of an already validated row (UI edit) and re-validate it, keeping its id. */
-export function withCopies(row: ValidatedRow, copiesText: string): ValidatedRow {
-  return validateRow({ ...row.raw, copies: copiesText }, row.id);
+export function withCopies(row: ValidatedRow, copiesText: string, opts: ValidateOptions = {}): ValidatedRow {
+  return validateRow({ ...row.raw, copies: copiesText }, row.id, opts);
 }
 
 export interface Summary {

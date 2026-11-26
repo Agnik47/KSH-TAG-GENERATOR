@@ -2,7 +2,7 @@
 
 Price-tag + barcode generator for the **Kids Surplus Hub (KSH)** offline store.
 
-**Phase 1 (built):** drop a CSV → check the table and live preview → download a print-ready PDF for the Zebra GX430t (300 dpi, 75 × 125 mm roll). It runs entirely in the browser: no login, no server, no secrets, nothing is uploaded.
+**Phase 1 (built):** drop a CSV or Excel file → check the table and live preview → choose the label size → download a print-ready PDF for the Zebra GX430t (300 dpi; 75 × 125 mm roll by default, 100 × 50, 51 × 32 or custom). It runs entirely in the browser: no login, no server, no secrets, nothing is uploaded.
 
 ## Run it
 
@@ -30,9 +30,10 @@ Other scripts: `npm test`, `npm run test:watch`, `npm run lint` / `lint:fix`, `n
 
 1. Click **Sample Excel** in the top bar (20 example products) or **Template** (empty). Fill one row per product on the **Tags** sheet: green columns are required, blue ones (Color, Size) only for old Wishkaro tags, amber is Copies. A red cell means a mistake. The **How to fill** sheet explains every column. (CSV versions are still available on the start screen.)
 2. Click **Open file** or drop the Excel (.xlsx) or CSV file anywhere on the page. Each row shows **Ready**, **Skipped** (Copies 0) or **Error** with the reason; **Row** is the row number in your file. Error rows are never printed. The **Errors** filter shows only the problems.
-3. Click a row (or use ↑ ↓) to see its tag on the right. Change **Copies** in the table, or use **Set all copies**.
-4. **Test print (1 each)** → print → scan each tag at the POS.
-5. **Download print PDF** → print on the Zebra at **Actual size / 100%** (never "Fit to page"), paper 75 × 125 mm, portrait.
+3. Choose the **Label size** on the right (75 × 125, 100 × 50, 51 × 32 or Custom) and **Horizontal / Vertical**. Every row is checked again: codes too long for that label show as errors. Small labels (like 51 × 32) print the **QR tag**: store name, product name, QR code, MRP (struck, incl. of all taxes) / our price / Mfd month, the code, and the Mfg/Mkt + Country of Origin line. Every current code fits.
+4. Click a row (or use ↑ ↓) to see its tag on the right. Change **Copies** in the table, or use **Set all copies**.
+5. **Test print (1 each)** → print → scan each tag at the POS.
+6. **Download print PDF** → print on the Zebra at **Actual size / 100%** (never "Fit to page"), paper = the label size you chose. Set the same size in the Zebra printer settings and calibrate the printer after changing rolls.
 
 ## Code layout
 
@@ -43,12 +44,14 @@ src/
   core/tags/                 The tag pipeline. Framework-free (lint-enforced); Phase 2 reuses it on the server
     csv/                     parse (headers + aliases) · validate (rules, derived values, Copies) · expand (one row per label)
     barcode/code128.ts       Code 128 via bwip-js; bars 7/6/5/4/3 dots within 113 mm incl. quiet zones
-    layout/                  tag-layout (tag → drawing instructions, mm) · font-metrics (DejaVu widths, missing glyphs)
-    pdf/render-pdf.ts        Print (75 × 125, rotated 90°) and preview (125 × 75) PDFs; one Form XObject per distinct tag
+    barcode/qr.ts            QR code (small labels) via bwip-js; square size in whole printer dots
+    label/label.ts           Label sizes, orientation, page/rotation and barcode room per label
+    layout/                  tag-layout (standard docs/03 tag) · fitted-layout (other sizes) · qr-tag-layout (small Classic QR tag) · draw-ops · font-metrics
+    pdf/render-pdf.ts        Print (page = label, tag turned 90° when needed) and preview PDFs; one Form XObject per tag
     xlsx/                    Colour-coded Excel template/sample (ExcelJS) and .xlsx reading. Lazy-loaded, not in index.ts
     index.ts                 Public API
   features/tag-studio/       The Tag Studio screen
-    components/              TagStudio, RowsToolbar, RowsTable, CopiesInput, PreviewPanel, TagPreview, ActionsPanel, PrintGuide, EmptyState
+    components/              TagStudio, LabelPicker, RowsToolbar, RowsTable, CopiesInput, PreviewPanel, TagPreview, ActionsPanel, PrintGuide, EmptyState
     hooks/                   useTagStudio (state + commands), useTagFonts
     state/studio-reducer.ts  Pure reducer (unit-tested)
   components/                Shared UI: layout/AppHeader (navbar), ui/Button, Badge, Toaster
@@ -69,6 +72,7 @@ docs/                        Spec (01–05) and DECISIONS_LOG.md
 | `docs/04_SHOPIFY_DATA.md` | Phase 2 only: where every value comes from in Shopify, IDs, rules |
 | `docs/05_DECISIONS.md` | Decisions already made, and open questions |
 | `samples/` | CSV template, 20-product sample input, sample expanded output |
+| `docs/TEST_CODE/` | QR test tags and the 5 design options for the 51 × 32 label (`npm run scan-test`, `node scripts/make-qr-designs.mjs`) |
 | `reference/` | The Python scripts and PNGs of the tags already printed and scanned in the store (layout source of truth) |
 
 ## The two phases

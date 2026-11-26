@@ -4,10 +4,12 @@ import { Download, FileSpreadsheet, FileUp, PlayCircle, TriangleAlert, Upload } 
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Button } from '@/components/ui/Button';
 import { TAG_FILE_ACCEPT } from '@/lib/browser/read-tag-file';
+import { labelName } from '@/core/tags';
 import { cn } from '@/lib/utils/cn';
 import { useTagStudio } from '../hooks/useTagStudio';
 import { ActionsPanel } from './ActionsPanel';
 import { EmptyState } from './EmptyState';
+import { LabelPicker } from './LabelPicker';
 import { PreviewPanel } from './PreviewPanel';
 import { PrintGuide } from './PrintGuide';
 import { RowsTable } from './RowsTable';
@@ -128,6 +130,7 @@ export function TagStudio() {
                 source={state.source}
                 notice={state.notice}
                 summary={summary}
+                sizeErrors={studio.sizeErrors}
                 counts={studio.counts}
                 filter={state.filter}
                 onFilter={studio.setFilter}
@@ -171,17 +174,26 @@ export function TagStudio() {
           className="border-t border-slate-200 bg-slate-100/60 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l"
         >
           <div className="space-y-4 p-4 sm:p-5">
+            <LabelPicker label={state.label} geometry={studio.geometry} tooLong={studio.tooLong} onChange={studio.setLabel} />
             <PreviewPanel
               row={selected}
               ops={studio.previewOps}
               warnings={selected ? (studio.warnings.get(selected.id) ?? []) : []}
               position={position}
               fontsReady={studio.fontsReady}
+              geometry={studio.geometry}
               onPrev={() => studio.selectRelative(-1)}
               onNext={() => studio.selectRelative(1)}
             />
-            <ActionsPanel summary={summary} fontsReady={studio.fontsReady} busy={studio.busy} onExport={studio.exportFile} />
-            <PrintGuide />
+            <ActionsPanel
+              summary={summary}
+              labelText={labelName(state.label)}
+              designText={`${studio.geometry.w} × ${studio.geometry.h}`}
+              fontsReady={studio.fontsReady}
+              busy={studio.busy}
+              onExport={studio.exportFile}
+            />
+            <PrintGuide label={state.label} />
           </div>
         </aside>
       </div>

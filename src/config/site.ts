@@ -2,12 +2,11 @@
 export const siteConfig = {
   name: 'KSH Tag Studio',
   store: 'Kids Surplus Hub',
-  description: 'Price tags with Code 128 barcodes for the Kids Surplus Hub store (Zebra GX430t, 75 × 125 mm).',
+  description:
+    'Price tags with Code 128 barcodes for the Kids Surplus Hub store (Zebra GX430t; 75 × 125 mm and other label sizes).',
   printer: {
     model: 'Zebra GX430t',
     dpi: 300,
-    paper: '75 × 125 mm',
-    orientation: 'portrait',
   },
 } as const;
 

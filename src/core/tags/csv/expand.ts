@@ -68,8 +68,9 @@ export function expandedCsvFileName(date: Date, totalLabels: number): string {
 }
 
 /** PDF names follow the same pattern: `ksh-tags_<kind>_<YYYY-MM-DD_HHmm>_<pages>.pdf`. */
-export function pdfFileName(kind: 'print' | 'TEST-1-each' | 'preview', date: Date, pages: number): string {
-  return `ksh-tags_${kind}_${fileStamp(date)}_${pages}.pdf`;
+/** `sizeTag` (e.g. "51x32mm") is added for labels other than the standard 75 × 125 roll. */
+export function pdfFileName(kind: 'print' | 'TEST-1-each' | 'preview', date: Date, pages: number, sizeTag?: string): string {
+  return `ksh-tags_${kind}${sizeTag ? `_${sizeTag}` : ''}_${fileStamp(date)}_${pages}.pdf`;
 }
 
 /** The empty input template (headers only), same as samples/ksh_tags_template.csv. */

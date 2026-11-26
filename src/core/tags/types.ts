@@ -40,7 +40,7 @@ export interface TagData {
   youSave: number;
   /** Text of the SKU line (for the expanded CSV); the tag draws Size in bold. */
   skuLine: string;
-  /** Narrow-bar width in printer dots (7, 6, 5, 4 or 3). */
+  /** Narrow-bar width in printer dots (7…3) for a line barcode, or the QR square size in dots on small tags. */
   barcodeDots: number;
 }
 

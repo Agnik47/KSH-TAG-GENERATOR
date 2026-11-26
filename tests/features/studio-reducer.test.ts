@@ -108,6 +108,39 @@ describe('studioReducer', () => {
     expect(selectedRow(s)?.raw.productName).toBe('Good two');
   });
 
+  it('setLabel re-checks every row for the new size, keeping ids and copies', () => {
+    const base = run(sample());
+    const s0 = studioReducer(base, { type: 'setCopies', id: base.rows[18].id, value: '4' });
+    // A narrow line-barcode tag: only the two short Wishkaro codes fit; the 18 long SKU codes become errors.
+    const small = studioReducer(s0, { type: 'setLabel', label: { widthMm: 75, lengthMm: 125, orientation: 'vertical' } });
+    expect(small.rows.filter((r) => r.status === 'ready').map((r) => r.raw.scanIdentifier)).toEqual(['bt539cfe', 'bt624y']);
+    expect(small.rows[0].errors[0]).toContain('too long for 75 × 125 mm vertical');
+    expect(small.rows.map((r) => r.id)).toEqual(s0.rows.map((r) => r.id));
+    expect(small.rows[18].copies).toBe(4);
+    // Back to the standard roll: everything is ready again.
+    const back = studioReducer(small, { type: 'setLabel', label: initialStudioState.label });
+    expect(back.rows.every((r) => r.status === 'ready')).toBe(true);
+    // Same label again changes nothing.
+    expect(studioReducer(small, { type: 'setLabel', label: { ...small.label } })).toBe(small);
+  });
+
+  it('the label is kept when a file is loaded or the list is cleared', () => {
+    const label = { widthMm: 75, lengthMm: 125, orientation: 'vertical' } as const;
+    const s = studioReducer(run(), { type: 'setLabel', label });
+    const loaded = studioReducer(s, sample());
+    expect(loaded.label).toEqual(label);
+    expect(loaded.rows.filter((r) => r.status === 'ready')).toHaveLength(2);
+    expect(studioReducer(loaded, { type: 'clear' }).label).toEqual(label);
+    // Copies edits are checked against the chosen label too.
+    const longId = loaded.rows[0].id;
+    expect(studioReducer(loaded, { type: 'setCopies', id: longId, value: '2' }).rows[0].status).toBe('error');
+  });
+
+  it('the 51 × 32 QR tag accepts every sample code (new and old SKUs)', () => {
+    const s = studioReducer(run(sample()), { type: 'setLabel', label: { widthMm: 51, lengthMm: 32, orientation: 'horizontal' } });
+    expect(s.rows.every((r) => r.status === 'ready')).toBe(true);
+  });
+
   it('select ignores unknown ids; clear resets everything', () => {
     const s = run(sample());
     expect(studioReducer(s, { type: 'select', id: 'nope' })).toBe(s);
